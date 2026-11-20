@@ -23,3 +23,25 @@ export const getMe = async (token) => {
 
   return response.data;
 };
+
+// UPDATE USER PROFILE
+export const updateProfile = async (profileData, token) => {
+  const response = await API.put("/auth/update-profile", profileData, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};
+
+// CHANGE PASSWORD
+export const changePassword = async (passwordData, token) => {
+  const response = await API.put("/auth/change-password", passwordData, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};

@@ -16,7 +16,20 @@ import {
   Lock, Mail, Eye, EyeOff, CheckCircle2
 } from "lucide-react";
 
-import { registerUser, loginUser, getMe } from "./services/authApi";
+import {
+  registerUser,
+  loginUser,
+  getMe,
+  updateProfile,
+} from "./services/authApi";
+
+import ResumeAnalyzer from "./components/ResumeAnalyzer";
+import ResumeBuilder from "./components/ResumeBuilder";
+import FindJobs from "./components/FindJobs";
+import InterviewCoach from "./components/InterviewCoach";
+import SkillInsights from "./components/SkillInsights";
+import CareerProgress from "./components/CareerProgress";
+import { changePassword } from "./services/authApi";
 
 function AppContent() {
   const [dark, setDark] = useState(
@@ -55,6 +68,29 @@ function AppContent() {
 
     restoreSession();
   }, []);
+
+  useEffect(() => {
+  const handleProfileUpdate = (event) => {
+    setUser(event.detail);
+
+    localStorage.setItem(
+      "hirewise-user",
+      JSON.stringify(event.detail)
+    );
+  };
+
+  window.addEventListener(
+    "hirewise-profile-updated",
+    handleProfileUpdate
+  );
+
+  return () => {
+    window.removeEventListener(
+      "hirewise-profile-updated",
+      handleProfileUpdate
+    );
+  };
+}, []);
 
   function logout() {
     localStorage.removeItem("hirewise-token");
@@ -432,12 +468,158 @@ function AuthPage({ type, setUser }) {
 function Dashboard({ user, dark, theme, logout, menu, setMenu }) {
   const navigate = useNavigate();
 
-  const items = [
-    [LayoutDashboard, "Overview", "/dashboard"],
-    [FileText, "Resume Analyzer", "#"],
-    [Briefcase, "Find Jobs", "#"],
-    [MessageSquare, "Interview Coach", "#"],
-    [Settings, "Settings", "#"]
+const [passwordData, setPasswordData] = useState({
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
+});
+
+const [showPasswords, setShowPasswords] = useState(false);
+const [passwordMessage, setPasswordMessage] = useState("");
+const [passwordError, setPasswordError] = useState("");
+const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const [activePage, setActivePage] = useState("Overview");
+
+  const [profile, setProfile] = useState({
+  name: user.name || "",
+  phone: user.phone || "",
+  location: user.location || "",
+  education: user.education || "",
+  skills: (user.skills || []).join(", "),
+  careerGoal: user.careerGoal || "",
+});
+
+useEffect(() => {
+  setProfile({
+    name: user.name || "",
+    phone: user.phone || "",
+    location: user.location || "",
+    education: user.education || "",
+    skills: (user.skills || []).join(", "),
+    careerGoal: user.careerGoal || "",
+  });
+}, [user]);
+
+const [profileMessage, setProfileMessage] = useState("");
+const [profileLoading, setProfileLoading] = useState(false);
+
+const profileFields = [
+  user.name,
+  user.email,
+  user.phone,
+  user.location,
+  user.education,
+  user.skills?.length > 0 ? "skills" : "",
+  user.careerGoal,
+];
+
+const completedFields = profileFields.filter(
+  (field) => field && field.toString().trim() !== ""
+).length;
+
+const profileCompletion = Math.round(
+  (completedFields / profileFields.length) * 100
+);
+
+async function handleProfileSave(e) {
+  e.preventDefault();
+
+  setProfileLoading(true);
+  setProfileMessage("");
+
+  try {
+    const token = localStorage.getItem("hirewise-token");
+
+    const profileData = {
+      ...profile,
+      skills: profile.skills
+        .split(",")
+        .map((skill) => skill.trim())
+        .filter(Boolean),
+    };
+
+    const result = await updateProfile(profileData, token);
+
+    window.dispatchEvent(
+  new CustomEvent("hirewise-profile-updated", {
+    detail: result.user,
+  })
+);
+
+    setProfile({
+      ...result.user,
+      skills: result.user.skills.join(", "),
+    });
+
+    setProfileMessage("Profile updated successfully!");
+  } catch (error) {
+    setProfileMessage(
+      error.response?.data?.message || "Unable to update profile."
+    );
+  } finally {
+    setProfileLoading(false);
+  }
+}
+
+
+async function handlePasswordChange(e) {
+  e.preventDefault();
+
+  setPasswordMessage("");
+  setPasswordError("");
+
+  if (passwordData.newPassword.length < 6) {
+    setPasswordError("New password must contain at least 6 characters.");
+    return;
+  }
+
+  if (passwordData.newPassword !== passwordData.confirmPassword) {
+    setPasswordError("New password and confirm password do not match.");
+    return;
+  }
+
+  try {
+    setPasswordLoading(true);
+
+    const token = localStorage.getItem("hirewise-token");
+
+    const result = await changePassword(
+      {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      },
+      token
+    );
+
+    setPasswordMessage(result.message || "Password changed successfully!");
+
+    setPasswordData({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+
+  } catch (error) {
+    setPasswordError(
+      error.response?.data?.message || "Unable to change password."
+    );
+  } finally {
+    setPasswordLoading(false);
+  }
+}
+
+
+    const items = [
+    [LayoutDashboard, "Overview"],
+    [FileText, "Resume Analyzer"],
+    [FileText, "Resume Builder"],
+    [Briefcase, "Find Jobs"],
+    [MessageSquare, "Interview Coach"],
+    [Target, "Skill Insights"],
+    [ChartNoAxesCombined, "Career Progress"],
+    [User, "My Profile"],
+    [Settings, "Settings"]
   ];
 
   return (
@@ -452,15 +634,20 @@ function Dashboard({ user, dark, theme, logout, menu, setMenu }) {
         </p>
 
         <div className="space-y-2">
-          {items.map(([Icon, label, path]) => (
-            <button
-              key={label}
-              onClick={() => path !== "#" && navigate(path)}
-              className={`flex w-full items-center gap-3 rounded-xl p-3 text-left font-semibold ${label === "Overview" ? "soft-bg primary-text" : "muted"}`}
-            >
-              <Icon size={19} /> {label}
-            </button>
-          ))}
+          {items.map(([Icon, label]) => (
+  <button
+    key={label}
+    onClick={() => {
+      setActivePage(label);
+      setMenu(false);
+    }}
+    className={`flex w-full items-center gap-3 rounded-xl p-3 text-left font-semibold ${
+      activePage === label ? "soft-bg primary-text" : "muted"
+    }`}
+  >
+    <Icon size={19} /> {label}
+  </button>
+))}
         </div>
 
         <div className="absolute bottom-6 left-6 right-6">
@@ -505,6 +692,356 @@ function Dashboard({ user, dark, theme, logout, menu, setMenu }) {
           </div>
         </div>
 
+
+{activePage === "My Profile" && (
+
+  <div className="surface mt-9 rounded-2xl p-7">
+    <h2 className="text-2xl font-extrabold">My Profile</h2>
+    <p className="muted mt-2">
+      Update your personal and career information.
+    </p>
+
+    <form onSubmit={handleProfileSave} className="mt-7 space-y-5">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <label className="mb-2 block font-semibold">Full Name</label>
+          <input
+            className="surface w-full rounded-xl border p-3 outline-none"
+            value={profile.name}
+            onChange={(e) =>
+              setProfile({ ...profile, name: e.target.value })
+            }
+            required
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block font-semibold">Phone Number</label>
+          <input
+            className="surface w-full rounded-xl border p-3 outline-none"
+            value={profile.phone}
+            onChange={(e) =>
+              setProfile({ ...profile, phone: e.target.value })
+            }
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block font-semibold">Location</label>
+          <input
+            className="surface w-full rounded-xl border p-3 outline-none"
+            value={profile.location}
+            onChange={(e) =>
+              setProfile({ ...profile, location: e.target.value })
+            }
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block font-semibold">Education</label>
+          <input
+            className="surface w-full rounded-xl border p-3 outline-none"
+            value={profile.education}
+            onChange={(e) =>
+              setProfile({ ...profile, education: e.target.value })
+            }
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-2 block font-semibold">
+          Skills (separate with commas)
+        </label>
+        <input
+          className="surface w-full rounded-xl border p-3 outline-none"
+          placeholder="HTML, CSS, JavaScript, React"
+          value={profile.skills}
+          onChange={(e) =>
+            setProfile({ ...profile, skills: e.target.value })
+          }
+        />
+      </div>
+
+      <div>
+        <label className="mb-2 block font-semibold">Career Goal</label>
+        <input
+          className="surface w-full rounded-xl border p-3 outline-none"
+          placeholder="e.g. Frontend Developer"
+          value={profile.careerGoal}
+          onChange={(e) =>
+            setProfile({ ...profile, careerGoal: e.target.value })
+          }
+        />
+      </div>
+
+      {profileMessage && (
+        <p className="text-sm font-semibold primary-text">
+          {profileMessage}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={profileLoading}
+        className="primary-button rounded-xl px-7 py-3 font-bold disabled:opacity-60"
+      >
+        {profileLoading ? "Saving..." : "Save Changes"}
+      </button>
+    </form>
+  </div>
+)}
+
+
+{activePage === "Settings" && (
+  <div className="mt-9 space-y-6">
+
+    <div>
+      <p className="text-sm font-semibold primary-text">
+        PERSONAL PREFERENCES
+      </p>
+      <h2 className="mt-1 text-3xl font-extrabold">
+        Settings
+      </h2>
+      <p className="muted mt-2">
+        Manage your account and application preferences.
+      </p>
+    </div>
+
+    {/* Account Information */}
+
+    <div className="surface rounded-2xl p-6">
+      <div className="flex items-center gap-3">
+        <div className="soft-bg primary-text rounded-xl p-3">
+          <User size={25} />
+        </div>
+        <div>
+          <h3 className="text-lg font-bold">Account Information</h3>
+          <p className="muted text-sm">
+            Your registered account details
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-5 sm:grid-cols-2">
+        <div>
+          <p className="muted text-sm">Full Name</p>
+          <p className="mt-1 font-semibold">{user.name}</p>
+        </div>
+
+        <div>
+          <p className="muted text-sm">Email Address</p>
+          <p className="mt-1 break-all font-semibold">{user.email}</p>
+        </div>
+
+        <div>
+          <p className="muted text-sm">Account Role</p>
+          <p className="mt-1 font-semibold">
+            {user.role || "User"}
+          </p>
+        </div>
+
+        <div>
+          <p className="muted text-sm">Account Status</p>
+          <p className="mt-1 font-semibold text-green-500">
+            Active
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* Appearance */}
+
+    <div className="surface rounded-2xl p-6">
+      <div className="flex items-center gap-3">
+        <div className="soft-bg primary-text rounded-xl p-3">
+          {dark ? <Moon size={25} /> : <Sun size={25} />}
+        </div>
+
+        <div>
+          <h3 className="text-lg font-bold">Appearance</h3>
+          <p className="muted text-sm">
+            Customize your HireWise theme.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="font-semibold">
+            {dark ? "Dark Mode" : "Light Mode"}
+          </p>
+          <p className="muted mt-1 text-sm">
+            Choose your preferred display theme.
+          </p>
+        </div>
+
+        <button
+          onClick={theme}
+          className="primary-button flex items-center gap-2 rounded-xl px-5 py-3 font-semibold"
+        >
+          {dark ? <Sun size={18} /> : <Moon size={18} />}
+          Switch to {dark ? "Light" : "Dark"} Mode
+        </button>
+      </div>
+    </div>
+
+    {/* Profile Settings */}
+
+    <div className="surface rounded-2xl p-6">
+      <div className="flex items-center gap-3">
+        <div className="soft-bg primary-text rounded-xl p-3">
+          <User size={25} />
+        </div>
+
+        <div>
+          <h3 className="text-lg font-bold">Profile Settings</h3>
+          <p className="muted text-sm">
+            Update your personal and career details.
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={() => setActivePage("My Profile")}
+        className="primary-button mt-5 rounded-xl px-5 py-3 font-semibold"
+      >
+        Edit My Profile
+      </button>
+    </div>
+
+
+<div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 space-y-5">
+  <div>
+    <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+      Change Password
+    </h3>
+    <p className="text-sm text-slate-500 mt-1">
+      Update your account password securely.
+    </p>
+  </div>
+
+  <form onSubmit={handlePasswordChange} className="space-y-4">
+    <input
+      type={showPasswords ? "text" : "password"}
+      placeholder="Current Password"
+      value={passwordData.currentPassword}
+      onChange={(e) =>
+        setPasswordData({ ...passwordData, currentPassword: e.target.value })
+      }
+      required
+      className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent dark:text-white outline-none"
+    />
+
+    <input
+      type={showPasswords ? "text" : "password"}
+      placeholder="New Password (minimum 6 characters)"
+      value={passwordData.newPassword}
+      onChange={(e) =>
+        setPasswordData({ ...passwordData, newPassword: e.target.value })
+      }
+      required
+      minLength={6}
+      className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent dark:text-white outline-none"
+    />
+
+    <input
+      type={showPasswords ? "text" : "password"}
+      placeholder="Confirm New Password"
+      value={passwordData.confirmPassword}
+      onChange={(e) =>
+        setPasswordData({ ...passwordData, confirmPassword: e.target.value })
+      }
+      required
+      minLength={6}
+      className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent dark:text-white outline-none"
+    />
+
+    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+      <input
+        type="checkbox"
+        checked={showPasswords}
+        onChange={(e) => setShowPasswords(e.target.checked)}
+      />
+      Show passwords
+    </label>
+
+    {passwordError && (
+      <p className="text-sm text-red-500">{passwordError}</p>
+    )}
+
+    {passwordMessage && (
+      <p className="text-sm text-green-600">{passwordMessage}</p>
+    )}
+
+    <button
+      type="submit"
+      disabled={passwordLoading}
+      className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold disabled:opacity-50"
+    >
+      {passwordLoading ? "Updating..." : "Update Password"}
+    </button>
+  </form>
+</div>
+
+    {/* Logout */}
+
+    <div className="surface rounded-2xl border border-red-500/20 p-6">
+      <div className="flex items-center gap-3">
+        <div className="rounded-xl bg-red-500/10 p-3 text-red-500">
+          <LogOut size={25} />
+        </div>
+
+        <div>
+          <h3 className="text-lg font-bold">Logout</h3>
+          <p className="muted text-sm">
+            Sign out from your HireWise account.
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={logout}
+        className="mt-5 rounded-xl bg-red-600 px-6 py-3 font-semibold text-white"
+      >
+        Logout from Account
+      </button>
+    </div>
+
+  </div>
+)}
+
+{activePage === "Overview" && (
+  <div className="surface mt-9 rounded-2xl p-6">
+    <div className="flex items-center justify-between">
+      <div>
+        <h2 className="text-xl font-extrabold">
+          Profile Completion
+        </h2>
+        <p className="muted mt-1 text-sm">
+          Complete your profile to get better career recommendations.
+        </p>
+      </div>
+
+      <span className="text-3xl font-extrabold primary-text">
+        {profileCompletion}%
+      </span>
+    </div>
+
+    <div className="mt-5 h-3 w-full overflow-hidden rounded-full bg-gray-200">
+      <div
+        className="h-full rounded-full bg-gradient-to-r from-pink-500 to-purple-600 transition-all duration-500"
+        style={{ width: `${profileCompletion}%` }}
+      />
+    </div>
+
+    <p className="muted mt-3 text-sm">
+      {completedFields} out of 7 profile fields completed.
+    </p>
+  </div>
+)}
+{activePage === "Overview" && (
+  <>
         <div className="primary-button mt-9 rounded-2xl p-7">
           <p className="text-sm text-white/80">WELCOME TO HIREWISE</p>
           <h2 className="mt-3 text-3xl font-extrabold">
@@ -534,6 +1071,34 @@ function Dashboard({ user, dark, theme, logout, menu, setMenu }) {
             </div>
           ))}
         </div>
+        </>
+)}
+
+{activePage === "Resume Analyzer" && (
+  <ResumeAnalyzer />
+)}
+
+{activePage === "Resume Builder" && (
+  <ResumeBuilder />
+)}
+
+{activePage === "Find Jobs" && (
+  <FindJobs />
+)}
+
+{activePage === "Interview Coach" && (
+  <InterviewCoach />
+)}
+
+{activePage === "Skill Insights" && (
+  <SkillInsights />
+)}
+
+{activePage === "Career Progress" && (
+  <CareerProgress />
+)}
+
+
       </main>
     </div>
   );

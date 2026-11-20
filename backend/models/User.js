@@ -28,6 +28,44 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user",
     },
+
+    // Career profile details
+    phone: {
+      type: String,
+      default: "",
+    },
+
+    location: {
+      type: String,
+      default: "",
+    },
+
+    education: {
+      type: String,
+      default: "",
+    },
+
+    skills: {
+      type: [String],
+      default: [],
+    },
+
+    careerGoal: {
+      type: String,
+      default: "",
+    },
+    careerProgress: {
+  type: mongoose.Schema.Types.Mixed,
+  default: {
+    goal: "Get my dream job",
+    completedCourses: 0,
+    completedProjects: 0,
+    interviews: 0,
+    skillsLearned: 0,
+    activities: [],
+  },
+},
+
   },
   {
     timestamps: true,
