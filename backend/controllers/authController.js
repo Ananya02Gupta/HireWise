@@ -2,6 +2,8 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const sendEmail = require("../utils/sendEmail");
 
 // REGISTER USER
 const registerUser = async (req, res) => {
@@ -313,6 +315,138 @@ const updateProfile = async (req, res) => {
   }
 };
 
+ // FORGOT PASSWORD
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body || {};
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter your email",
+      });
+    }
+
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+    });
+
+    // Do not reveal whether an email is registered
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: "If this email is registered, an OTP will be sent.",
+      });
+    }
+
+    const otp = crypto.randomInt(100000, 1000000).toString();
+
+    user.resetPasswordOTP = await bcrypt.hash(otp, 10);
+    user.resetPasswordOTPExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    await user.save();
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: "HireWise Password Reset OTP",
+        message: `
+          <h2>HireWise Password Reset</h2>
+          <p>Your password reset OTP is:</p>
+          <h1>${otp}</h1>
+          <p>This OTP is valid for 10 minutes.</p>
+          <p>If you did not request this, please ignore this email.</p>
+        `,
+      });
+    } catch (emailError) {
+      user.resetPasswordOTP = null;
+      user.resetPasswordOTPExpires = null;
+      await user.save();
+
+      throw emailError;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "If this email is registered, an OTP will be sent.",
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to send OTP. Please try again.",
+    });
+  }
+};
+
+// RESET PASSWORD
+const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body || {};
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter email, OTP and new password",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
+    }
+
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+    });
+
+    if (
+      !user ||
+      !user.resetPasswordOTP ||
+      !user.resetPasswordOTPExpires ||
+      user.resetPasswordOTPExpires < new Date()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired OTP",
+      });
+    }
+
+    const isOTPValid = await bcrypt.compare(
+      otp.toString(),
+      user.resetPasswordOTP
+    );
+
+    if (!isOTPValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired OTP",
+      });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.resetPasswordOTP = null;
+    user.resetPasswordOTPExpires = null;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successfully. Please login.",
+    });
+  } catch (error) {
+    console.error("Reset password error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to reset password",
+    });
+  }
+};
+
 // CHANGE PASSWORD
 const changePassword = async (req, res) => {
   try {
@@ -390,4 +524,6 @@ module.exports = {
   getMe,
   updateProfile,
   changePassword,
+  forgotPassword,
+  resetPassword,
 };

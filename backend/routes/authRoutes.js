@@ -8,19 +8,20 @@ const {
   getMe,
   updateProfile,
   changePassword,
+  forgotPassword,
+  resetPassword,
 } = require("../controllers/authController");
 
 const { protect } = require("../middleware/authMiddleware");
 
-// Authentication routes
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 
-// Protected profile routes
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
+
 router.get("/me", protect, getMe);
 router.put("/update-profile", protect, updateProfile);
-
-// Protected password route
 router.put("/change-password", protect, changePassword);
 
 module.exports = router;

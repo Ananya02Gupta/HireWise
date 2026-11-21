@@ -65,6 +65,16 @@ const userSchema = new mongoose.Schema(
     activities: [],
   },
 },
+    // Forgot Password OTP
+    resetPasswordOTP: {
+      type: String,
+      default: null,
+    },
+
+    resetPasswordOTPExpires: {
+      type: Date,
+      default: null,
+    },
 
   },
   {
