@@ -1052,25 +1052,33 @@ async function handlePasswordChange(e) {
           </p>
         </div>
 
-        <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-          {[
-            [FileText, "Resume Analyzer", "Upload and improve your resume."],
-            [Briefcase, "Find Jobs", "Discover opportunities for your skills."],
-            [MessageSquare, "Interview Coach", "Practice for your next interview."],
-            [Target, "Skill Insights", "Identify skills to improve."],
-            [ChartNoAxesCombined, "Career Progress", "Monitor your career journey."],
-            [User, "My Profile", "Manage your personal information."]
-          ].map(([Icon, title, description]) => (
-            <div key={title} className="surface feature-card rounded-2xl p-6">
-              <div className="soft-bg primary-text inline-flex rounded-xl p-3">
-                <Icon size={24} />
-              </div>
-              <h3 className="mt-5 text-lg font-bold">{title}</h3>
-              <p className="muted mt-2 text-sm leading-6">{description}</p>
-              <p className="primary-text mt-5 text-sm font-bold">Coming soon</p>
-            </div>
-          ))}
-        </div>
+        
+<div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+  {[
+    [FileText, "Resume Analyzer", "Upload and improve your resume."],
+    [FileText, "Resume Builder", "Create your professional resume."],
+    [Briefcase, "Find Jobs", "Discover opportunities for your skills."],
+    [MessageSquare, "Interview Coach", "Practice for your next interview."],
+    [Target, "Skill Insights", "Identify skills to improve."],
+    [ChartNoAxesCombined, "Career Progress", "Monitor your career journey."],
+    [User, "My Profile", "Manage your personal information."]
+  ].map(([Icon, title, description]) => (
+    <button
+      key={title}
+      onClick={() => setActivePage(title)}
+      className="surface feature-card w-full rounded-2xl p-6 text-left transition hover:-translate-y-1 hover:shadow-lg"
+    >
+      <div className="soft-bg primary-text inline-flex rounded-xl p-3">
+        <Icon size={24} />
+      </div>
+      <h3 className="mt-5 text-lg font-bold">{title}</h3>
+      <p className="muted mt-2 text-sm leading-6">{description}</p>
+      <p className="primary-text mt-5 text-sm font-bold">
+        Explore Feature →
+      </p>
+    </button>
+  ))}
+</div>
         </>
 )}
 
